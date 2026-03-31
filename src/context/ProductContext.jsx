@@ -1,67 +1,76 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
+import { supabase } from '../lib/supabase';
 
 const ProductContext = createContext();
 
-const defaultProducts = [
-  {
-    id: '1',
-    name: 'Maxifit Pas Sökücü Sprey',
-    description: 'Etkili formülü ile paslanmış yüzeyleri anında çözer. Günlük bakım ve onarım işlerini hızlandırır.',
-    price: 150,
-    image: 'https://images.unsplash.com/photo-1621217734125-97818aaab9c3?auto=format&fit=crop&q=80&w=800',
-    category: 'Sprey',
-  },
-  {
-    id: '2',
-    name: 'Maxifit Motor Temizleme Sıvısı',
-    description: 'Motor bloklarındaki inatçı yağ ve kiri saniyeler içinde temizler. Yüksek performanslı teknolojik sıvı.',
-    price: 280,
-    image: 'https://images.unsplash.com/photo-1595185966453-3bdf73950fb2?auto=format&fit=crop&q=80&w=800',
-    category: 'Sıvı',
-  },
-  {
-    id: '3',
-    name: 'Maxifit Yağlayıcı Bakım Spreyi',
-    description: 'Sürtünmeyi azaltır, mekanik parçaların ömrünü uzatır. Araç bakımında maksimum verimlilik sağlar. Üstün Maxifit kalitesi.',
-    price: 130,
-    image: 'https://images.unsplash.com/photo-1580274455054-080c94627253?auto=format&fit=crop&q=80&w=800',
-    category: 'Sprey',
-  }
-];
-
 export const ProductProvider = ({ children }) => {
   const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedProducts = localStorage.getItem('maxifit_products');
-    if (storedProducts) {
-      setProducts(JSON.parse(storedProducts));
-    } else {
-      setProducts(defaultProducts);
-      localStorage.setItem('maxifit_products', JSON.stringify(defaultProducts));
-    }
+    fetchProducts();
   }, []);
 
-  const addProduct = (product) => {
-    const newProducts = [...products, { ...product, id: Date.now().toString() }];
-    setProducts(newProducts);
-    localStorage.setItem('maxifit_products', JSON.stringify(newProducts));
+  const fetchProducts = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .order('created_at', { ascending: false });
+      
+    if (error) {
+      console.error('Error fetching products:', error);
+    } else {
+      setProducts(data || []);
+    }
+    setLoading(false);
   };
 
-  const updateProduct = (id, updatedProduct) => {
-    const newProducts = products.map(p => p.id === id ? { ...p, ...updatedProduct } : p);
-    setProducts(newProducts);
-    localStorage.setItem('maxifit_products', JSON.stringify(newProducts));
+  const addProduct = async (product) => {
+    const { data, error } = await supabase
+      .from('products')
+      .insert([product])
+      .select();
+      
+    if (error) {
+      console.error('Error adding product:', error);
+      alert('Ürün eklenirken hata oluştu.');
+    } else if (data) {
+      setProducts([data[0], ...products]);
+    }
   };
 
-  const deleteProduct = (id) => {
-    const newProducts = products.filter(p => p.id !== id);
-    setProducts(newProducts);
-    localStorage.setItem('maxifit_products', JSON.stringify(newProducts));
+  const updateProduct = async (id, updatedProduct) => {
+    const { data, error } = await supabase
+      .from('products')
+      .update(updatedProduct)
+      .eq('id', id)
+      .select();
+      
+    if (error) {
+      console.error('Error updating product:', error);
+      alert('Ürün güncellenirken hata oluştu.');
+    } else if (data) {
+      setProducts(products.map(p => p.id === id ? data[0] : p));
+    }
+  };
+
+  const deleteProduct = async (id) => {
+    const { error } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', id);
+      
+    if (error) {
+      console.error('Error deleting product:', error);
+      alert('Ürün silinirken hata oluştu.');
+    } else {
+      setProducts(products.filter(p => p.id !== id));
+    }
   };
 
   return (
-    <ProductContext.Provider value={{ products, addProduct, updateProduct, deleteProduct }}>
+    <ProductContext.Provider value={{ products, addProduct, updateProduct, deleteProduct, loading, fetchProducts }}>
       {children}
     </ProductContext.Provider>
   );
