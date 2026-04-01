@@ -100,17 +100,17 @@ const Home = () => {
               if (product.image) {
                 try {
                   const parsed = JSON.parse(product.image);
-                  if (Array.isArray(parsed) && parsed.length > 0) productImg = parsed[0];
-                  else if (typeof parsed === 'string') productImg = parsed;
+                  if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]) productImg = parsed[0];
+                  else if (typeof parsed === 'string' && parsed) productImg = parsed;
                 } catch {
-                  productImg = product.image;
+                  if (product.image) productImg = product.image;
                 }
               }
 
               return (
                 <div key={product.id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                   <div style={{ height: '300px', padding: '1.5rem', background: '#ffffff', display: 'flex', justifyContent: 'center', alignItems: 'center', borderBottom: '1px solid var(--border)', overflow: 'hidden' }}>
-                    <img src={productImg} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'contain', transition: 'var(--transition-slow)' }} className="product-card-image" />
+                    <img src={productImg} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 10px 15px rgba(0,0,0,0.12))', transition: 'var(--transition-slow)' }} className="product-card-image" />
                   </div>
                   <div style={{ padding: '2rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>

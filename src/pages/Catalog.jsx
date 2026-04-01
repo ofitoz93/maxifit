@@ -110,10 +110,10 @@ const Catalog = () => {
                   if (product.image) {
                     try {
                       const parsed = JSON.parse(product.image);
-                      if (Array.isArray(parsed) && parsed.length > 0) productImg = parsed[0];
-                      else if (typeof parsed === 'string') productImg = parsed;
+                      if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]) productImg = parsed[0];
+                      else if (typeof parsed === 'string' && parsed) productImg = parsed;
                     } catch {
-                      productImg = product.image;
+                      if (product.image) productImg = product.image;
                     }
                   }
 
@@ -126,7 +126,7 @@ const Catalog = () => {
                         <img 
                           src={productImg} 
                           alt={product.name} 
-                          style={{ width: '100%', height: '100%', objectFit: 'contain', transition: 'var(--transition-slow)' }} 
+                          style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 10px 15px rgba(0,0,0,0.12))', transition: 'var(--transition-slow)' }} 
                           className="product-card-image"
                         />
                       </div>

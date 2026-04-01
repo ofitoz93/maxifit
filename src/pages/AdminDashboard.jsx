@@ -17,11 +17,12 @@ const AdminDashboard = () => {
   
   // Product state
   const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({ name: '', description: '', price: '', category: 'Temizleme' });
+  const [formData, setFormData] = useState({ name: '', description: '', price: '', category: 'Temizleme', volume: '', piece_count: '', msds_url: '' });
   const [isAdding, setIsAdding] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [existingImages, setExistingImages] = useState([]);
+  const [selectedMsdsFile, setSelectedMsdsFile] = useState(null);
 
   // CMS state
   const [cmsData, setCmsData] = useState({});
@@ -59,7 +60,10 @@ const AdminDashboard = () => {
       name: product.name || '',
       description: product.description || '',
       price: product.price || '',
-      category: product.category || 'Temizleme'
+      category: product.category || 'Temizleme',
+      volume: product.volume || '',
+      piece_count: product.piece_count || '',
+      msds_url: product.msds_url || ''
     });
     
     // Parse existing images
@@ -75,20 +79,28 @@ const AdminDashboard = () => {
     setExistingImages(images);
     setIsAdding(false);
     setSelectedFiles([]);
+    setSelectedMsdsFile(null);
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     setIsAdding(false);
-    setFormData({ name: '', description: '', price: '', category: 'Temizleme' });
+    setFormData({ name: '', description: '', price: '', category: 'Temizleme', volume: '', piece_count: '', msds_url: '' });
     setSelectedFiles([]);
     setExistingImages([]);
+    setSelectedMsdsFile(null);
   };
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files.length > 0) {
       // Convert FileList to Array
       setSelectedFiles(Array.from(e.target.files));
+    }
+  };
+
+  const handleMsdsChange = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setSelectedMsdsFile(e.target.files[0]);
     }
   };
 
@@ -105,13 +117,24 @@ const AdminDashboard = () => {
     
     try {
       for (const file of files) {
-        const fileExt = file.name.split('.').pop();
+        const fileExt = file.name.split('.').pop().toLowerCase();
+        
+        // Ensure proper MIME type mapping regardless of OS/Browser file.type detection
+        let mimeType = 'image/jpeg';
+        if (fileExt === 'png') mimeType = 'image/png';
+        else if (fileExt === 'webp') mimeType = 'image/webp';
+        else if (fileExt === 'gif') mimeType = 'image/gif';
+        else if (fileExt === 'svg') mimeType = 'image/svg+xml';
+
         const fileName = `${Math.random()}.${fileExt}`;
         const filePath = `${fileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from('product-images')
-          .upload(filePath, file);
+          .upload(filePath, file, {
+            contentType: mimeType,
+            cacheControl: '3600'
+          });
 
         if (uploadError) throw uploadError;
 
@@ -145,10 +168,39 @@ const AdminDashboard = () => {
       }
     }
 
+    let finalMsdsUrl = formData.msds_url;
+    if (selectedMsdsFile) {
+      setUploading(true);
+      try {
+        const fileExt = selectedMsdsFile.name.split('.').pop();
+        const fileName = `msds_${Math.random()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('product-images')
+          .upload(fileName, selectedMsdsFile, {
+            contentType: selectedMsdsFile.type || 'application/pdf',
+            cacheControl: '3600'
+          });
+          
+        if (uploadError) throw uploadError;
+        
+        const { data } = supabase.storage.from('product-images').getPublicUrl(fileName);
+        finalMsdsUrl = data.publicUrl;
+      } catch (error) {
+        console.error('Error uploading MSDS: ', error);
+        alert('MSDS yüklenirken hata oluştu!');
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+    }
+
     const productData = {
       ...formData,
       image: JSON.stringify(finalImageUrls), // Store multi images as JSON string
-      price: parseFloat(formData.price) || 0
+      price: parseFloat(formData.price) || 0,
+      piece_count: formData.piece_count ? parseInt(formData.piece_count) : null,
+      msds_url: finalMsdsUrl
     };
 
     if (editingId) {
@@ -162,9 +214,10 @@ const AdminDashboard = () => {
   const handleAddNew = () => {
     setIsAdding(true);
     setEditingId(null);
-    setFormData({ name: '', description: '', price: '', category: 'Temizleme' });
+    setFormData({ name: '', description: '', price: '', category: 'Temizleme', volume: '', piece_count: '', msds_url: '' });
     setSelectedFiles([]);
     setExistingImages([]);
+    setSelectedMsdsFile(null);
   };
 
   const handleChange = (e) => {
@@ -232,6 +285,32 @@ const AdminDashboard = () => {
                     <label>Fiyat (₺)</label>
                     <input type="number" step="0.01" name="price" value={formData.price} onChange={handleChange} className="input-field" required />
                   </div>
+                  <div className="input-group">
+                    <label>Ürün Hacmi</label>
+                    <input type="text" name="volume" value={formData.volume} onChange={handleChange} className="input-field" placeholder="Örn: 500ml, 5L" />
+                  </div>
+                  <div className="input-group">
+                    <label>Kutu İçi Adet</label>
+                    <input type="number" name="piece_count" value={formData.piece_count} onChange={handleChange} className="input-field" placeholder="Örn: 12" />
+                  </div>
+                  <div className="input-group">
+                    <label>Güvenlik Bilgi Formu (MSDS Yükle)</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <label className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0, flex: 1, padding: '0.6rem', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                        <UploadCloud size={16} /> 
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {selectedMsdsFile ? selectedMsdsFile.name : (formData.msds_url ? 'Yeni Form Seç' : 'Dosya Seç (.pdf, .doc)')}
+                        </span>
+                        <input type="file" accept=".pdf,.doc,.docx" onChange={handleMsdsChange} style={{ display: 'none' }} />
+                      </label>
+                      {(formData.msds_url || selectedMsdsFile) && (
+                        <button type="button" onClick={() => { setSelectedMsdsFile(null); setFormData(prev => ({...prev, msds_url: ''})); }} className="btn btn-danger" style={{ padding: '0.6rem' }} title="Dosyayı Temizle">
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                    {formData.msds_url && !selectedMsdsFile && <div style={{ fontSize: '0.8rem', marginTop: '0.5rem', color: 'var(--success)' }}>Mevcut yüklü bir form var.</div>}
+                  </div>
                 </div>
                 
                 <div className="input-group" style={{ marginTop: '1.5rem' }}>
@@ -263,8 +342,8 @@ const AdminDashboard = () => {
                   <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
                     <label className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0 }}>
                       <UploadCloud size={18} />
-                      Yeni Fotoğraflar Seç
-                      <input type="file" multiple accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
+                      Yeni Fotoğraflar Seç (JPG/PNG)
+                      <input type="file" multiple accept=".jpg,.jpeg,.png,.JPG,.JPEG,.PNG,.webp" onChange={handleFileChange} style={{ display: 'none' }} />
                     </label>
                   </div>
                 </div>
